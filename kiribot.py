@@ -1,203 +1,146 @@
 import discord
-import kiri_storage
-import KiriLevel
-import kiri_osu
-import disputils
-from discord.ext.commands.core import command
-from discord.ext import commands
+import discord.ext
 import sympy as sym
+from apicalls import OsuData, embed_osu, musicEngine
+import asyncio
+from pathlib import Path
+
+# setting up the bot
+intents = discord.Intents.all() 
+client = discord.Client(intents=intents)
+tree = discord.app_commands.CommandTree(client)
+musicPlayer = musicEngine(enabled=True)
+
+# sync the slash command to your server
+@client.event
+async def on_ready():
+    await tree.sync(guild=None)
+    activity = discord.Game(name="go touch grass", type=3)
+    await client.change_presence(status=discord.Status.do_not_disturb, activity=activity)
+    # print "ready" in the console when the bot is ready to work
+    print("finished loading bot")
+
+# make the slash command
+@tree.command(name="getallusers", description="lists out of all of the users in the server")
+async def slash_command(interaction: discord.Interaction):
+    result = interaction.guild_id
+    await interaction.response.send_message(f"[Was Sent From -> ] Current Guild: {result}")
+    all_members = []
+    test = []
+    for i in interaction.guild.members:
+        test.append(i)
+        all_members.append((i.name, i.display_name))
+    
+    print(all_members)
+    print(test)
+    await client.get_channel(interaction.channel_id).send(all_members)
+
+@tree.command(name="getserverinfo", description="gets some basic server information")
+async def getserverinfo(interaction: discord.Interaction):
+    await interaction.response.send_message("iyaaaa")
+
+@tree.command(name='vc-up', description='literally joins the current voice channel you are currently in')
+async def join_vc(interaction:discord.Interaction):
+    await interaction.response.send_message(f"Please Hold. Attempting to Join {interaction.user}'s voice channel. (If Exists)")
+    current_user = interaction.user.voice.channel
+    await current_user.connect()
+    await client.get_channel(interaction.channel_id).send(f"Joined Voice Channel: {current_user}")
 
 
-settings = {
-    "save_location": ".",
-    "api_key": "529892067590275104",
-    "secret_key": "NTI5ODkyMDY3NTkwMjc1MTA0.GeU1kn._81IeccD-_9FCzGf-GYV4j1bcmOnGx00YG8P4Q",
-    "bot_presence": "Kiriuwu >.<",
-    "prefix": ">"
-}
+@tree.command(name="differentiate", description="you can't do math confirmed")
+async def differentiate(interaction: discord.Interaction, equation: str, respect_to: str):
+    equation = equation.replace("^", "**")
+    print("with respect to", respect_to)
+    print("equation", equation)
+    alphabets = " ".join([i for i in equation if i.isalpha()])
+    stralpha = f"{','.join([i for i in equation if i.isalpha()])}=sym.symbols('{alphabets}')"
+    stralpha3 = f"derivative_result = sym.diff(equation, {respect_to})"
+    print(stralpha)
+    print(stralpha3)
+
+    exec(stralpha)
+    exec(stralpha3)
+    await interaction.response.send_message(str(locals()["derivative_result"]).replace("**", "^"))
 
 
-osu_client = {
-    "oath_code": "gkK6SDfwopiUsVcIHj2Lu5p2EA15gdLnQBRwo5kL",
-    "client_id": "21288"
-}
+@tree.command(name="get_osu_top_plays", description="Gets the top 10 plays for the user")
+async def get_osu_top_plays(interaction: discord.Interaction, player: str) -> list:
+    osu_data = OsuData()
+    osu_data_plays = osu_data.get_user_plays(player, limit=10, type="best")
 
-#DO NOT TOUCH ANYTHING BELOW THIS POINT
+    if osu_data and osu_data_plays:
+        send_this = embed_osu(player, osu_data_plays)
+        await interaction.response.send_message(embed=send_this)
+    else:
+        await interaction.response.send_message("Error has occured. Either Player does not exist or Timed Out.")
 
-class customembed:
+@tree.command(name="enqueue_song", description="Adds a song to the queue")
+async def enqueue_song(interaction:discord.Interaction, link: str):
+    result = await musicPlayer.enqueue_song(link)
+    try:
+        if result:
+            await interaction.response.send_message(f"Successfully enqueued song: {link}")
+        else:
+            await interaction.response.send_message(f"Problem with enqueueing the song.")
+    except discord.app_commands.errors.CommandInvokeError as e:
+        print(e)
+        await interaction.response.send_message(f"An error has occured, but likely is added {link} check the queue.")
 
-    @staticmethod
-    def osu_embed(player: str, osu_data_plays: list) -> list:
+@tree.command(name="show_queue", description="gets all of the song in the queue currently")
+async def show_queue(interaction:discord.Interaction):
+    result = await musicPlayer.song_embed()
+    try:
+        if result:
+            await interaction.response.send_message(embed=result)
+        else:
+            await interaction.response.send_message("No music currently in the queue")
+    except discord.app_commands.errors.CommandInvokeError as e:
+        print(e)
+        await interaction.response.send_message(f"An error has occured with discord. Please try again.")
+
+
+@tree.command(name="play_music", description="plays the music and joins the current vc you are in, if there is a queue.")
+async def play_music(interaction:discord.Interaction):
+    current_song = await musicPlayer.dequeue_song()
+    if current_song:
+        await interaction.response.send_message(f"Found music. Joining a voice call. Please Hold On.")
+        current_user = interaction.guild.voice_client
+
+        if not interaction.guild.voice_client or not current_user.is_connected():
+            current_user = interaction.user.voice.channel
+            current_user = await current_user.connect()
         
-        list_of_embeds = []
-        total_length = len(osu_data_plays)
+        while current_song:
+            await client.get_channel(interaction.channel_id).send(f"Now Playing: {Path(current_song).stem}.")
+            current_user.play(discord.FFmpegPCMAudio(current_song))
 
-        for play in range(len(osu_data_plays)):
+            while current_user.is_playing():
+                await asyncio.sleep(1)
             
-            custom_embed = discord.Embed(title=f"Top OSU! plays ({player}):\n", color=0xfb86d7)
-        
-            for counter, play_count in enumerate(range(total_length)):
-                play = osu_data_plays[play_count]
-                custom_embed.add_field(name=f"{play.beatmap_name} ({play.beatmap_version}) - {play.difficulty} ★", value=f"{round(float(play.pp))}pp/ {play.accuracy}%", inline=False)
+            current_song = await musicPlayer.dequeue_song()
+            print("playing next song?", current_song)
+    else:
+        await interaction.response.send_message("There are no songs in the queue.")
 
-                if counter == 10:
-                    total_length = play_count + 10
-                    list_of_embeds.append(custom_embed)
-                    break
-        
-        print(list_of_embeds)
-        print("DONE")
-        return list_of_embeds
+
+@tree.command(name="skip_current_song", description="skips the current song that is currently playing")
+async def skip_current_song(interaction:discord.Interaction):
+    current_user = interaction.guild.voice_client
+    if current_user and current_user.is_connected():
+        current_user.stop()
     
-
-    @staticmethod
-    def osu_embed_test(player: str, osu_data_plays: list) -> list:
-        
-
-        total_length = len(osu_data_plays)
-
-        custom_embed = discord.Embed(title=f"Top OSU! plays ({player}):\n", color=0xfb86d7)
-
-        for play in range(len(osu_data_plays)):
-            play = osu_data_plays[play]
-            custom_embed.add_field(name=f"{play.beatmap_name} ({play.beatmap_version}) - {play.difficulty} ★", value=f"{play.rank}: {float(play.pp)} pp/ {float(play.accuracy) * 100:.2f}%", inline=False)
-        
-        return custom_embed
+    await interaction.response.send_message(f"If there is a song that is currently playing right now, it will be skipped.")
 
 
-class MessageHandler:
+@tree.command(name="cur_version", description="gets the current verison of the bot")
+async def slash_command_two(interaction: discord.Interaction):    
+    await interaction.response.send_message("2.0")
 
-    @staticmethod
-    def bot_response(message, prefix: str, KiriSave: kiri_storage.KiriSave) -> str and bool:
-
-        if message.content == prefix + "stats":
-            return f"Here are the amount of messages you have sent {str(KiriSave.get_data(str(message.author.id)))}", False
-        elif message.content == prefix + "version":
-            return "Kiribot is currently running on 1.1 beta", False
-        elif message.content == prefix + "updates":
-            return "recently added chathooks", False
-        elif message.content == prefix + "info":
-            return str(message), False
-        elif message.content == prefix + "me":
-            user_data = KiriSave.get_data(str(message.author.id))
-            return f"Here are your current stats ({message.author.name}):\n" + \
-                   f"Rank: {str(KiriLevel.xp_converter.convert_rank(user_data))}\n" + \
-                   f"Level: {str(KiriLevel.xp_converter.convert_level(user_data).level)}\n" + \
-                   f"XP: {str(KiriLevel.xp_converter.convert_level(user_data).total_xp)}\n" + \
-                   f"Until Next Level: {str(100 - int(KiriLevel.xp_converter.convert_level(user_data).remain_xp))}\n" + \
-                   f"Talk more to earn more xp >.<\n", False
-
-        elif message.content == prefix + "help":
-            return f"Here are a list of currently supported commands:\n" + \
-                   f"{prefix}stats - gets the stats\n" + \
-                   f"{prefix}version - gets the version of the bot\n" + \
-                   f"{prefix}updates - gets the last updates of the bot\n" + \
-                   f"{prefix}info - for debugging purposes\n" + \
-                   f"{prefix}me - get own data (it is saved on the server)\n" + \
-                   f"> More commands are supported in the future.", False
-
-        elif str(message.content).find(prefix + "osu_top_plays") != -1:
-            try:
-                print("RAN")
-                player_name = str(message.content)[str(message.content).find(" ") + 1:].strip()
-                osu_data = kiri_osu.OsuData(osu_client["oath_code"], osu_client["client_id"])
-                osu_data_plays = osu_data.get_user_plays(player_name, limit=10, type="best")
-                if osu_data and osu_data_plays:
-                    return customembed.osu_embed_test(str(player_name), osu_data_plays), True
-                else:
-                    return "Invalid User", False
-            except (IndexError) as error:
-                print("KiriBot found error in finding name: " + str(error))
-                return None, None
-
-        return None, None
-
-
-class KiriBot:
-
-    bot = commands.Bot(command_prefix=settings["prefix"], intents=discord.Intents.all())
-    KiriSave = None
-
-    def __init__(self, settings):
-        KiriBot.KiriSave = kiri_storage.KiriSave(settings["save_location"], settings["api_key"], settings["secret_key"])
-        print("Successfully Set Up KiriBot")
-        print(settings["prefix"])
-        KiriBot.bot.run(settings["secret_key"])
-
-    @bot.event
-    async def on_ready():
-        activity = discord.Game(name=settings["bot_presence"], type=3)
-        await KiriBot.bot.change_presence(status=discord.Status.idle, activity=activity)
-        print(f'[KiriBot] Connected!')
-     
-    @bot.command(name='ping', aliases=["PING", "secret:3"])
-    async def ping(ctx):
-        print("pinged")
-        await ctx.send('pong')
-
-    @bot.command(name="add", aliases=["ashkutalbraincells"])
-    async def add(ctx, int_one, int_two):
-        try:
-            result = int(int_one) + int(int_two)
-            await ctx.send(result)
-        except ValueError as error:
-            print(f"error: {error}")
-            await ctx.send("Invalid Parameters :3")
-    
-    @bot.command(name="differentiate", aliases=["okboomer"])
-    async def differentiate(ctx, *, message):
-
-        equation = message
-        equation = equation.replace("^", "**")
-        new_equation = equation[:equation.find(" with respect to")].strip()
-        respect_to = equation.strip()[-1:]
-        print("with respect to", respect_to)
-        print("equation", new_equation)
-        alphabets = " ".join([i for i in new_equation if i.isalpha()])
-        stralpha = f"{','.join([i for i in new_equation if i.isalpha()])}=sym.symbols('{alphabets}')"
-        stralpha3 = f"derivative_result = sym.diff(new_equation, {respect_to})"
-        print(stralpha)
-        print(stralpha3)
-
-        exec(stralpha)
-        exec(stralpha3)
-        await ctx.send(str(locals()["derivative_result"]).replace("**", "^"))
-
-    @bot.event
-    async def on_message(message):
-
-        if message.author.id == KiriBot.bot.user.id:
-            return
-
-        print(f"[{message.author.name}#{message.author.discriminator}]: {message.content}")
-        response, is_embed = MessageHandler.bot_response(message, settings["prefix"], KiriSave=KiriBot.KiriSave)
-        KiriBot.KiriSave.update_data(str(message.author.id))
-
-        if response and is_embed:
-
-            if isinstance(response, list):
-                print("IS PAG")
-                paginator = disputils.BotEmbedPaginator(message, response)
-                await paginator.run()
-            else:
-                print("IS NOT PAG")
-                await message.channel.send(embed=response)
-
-        elif response:
-            await message.channel.send(response)
-        
-        await KiriBot.bot.process_commands(message)
+@tree.command(name="new_updates", description=" ")
+async def new_updates(interaction: discord.Interaction):
+    await interaction.response.send_message("Latest Version added music functionality")
 
 
 if __name__ == "__main__":
-
-    intents = discord.Intents.all()
-
-    print("\n----------KiriBot----------\n")
-    print("Here are your current Settings:\n")
-    for setting in settings.items():
-        print(f"[KiriBot Config] {setting[0]}: {setting[1]}\n")
-    print("----------KiriBot----------\n")
-
-    #Runs the Bot
-    KiriBot(settings)
+    print("Starting Bot")
+    client.run("NONE")

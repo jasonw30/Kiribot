@@ -1,10 +1,16 @@
-Welcome to KiriBot!!!
+Thanks for looking over my project.
+Please Do Not Reproduce this Project Thank you, its meant to be a mere showcase
+Unless you are one of the collaborators (Exception)
 
-Main Developer - KiriHyper #3358 (Jason)
+What is this project?
+This project is a discord bot that connects with discord api made for my server/friends (Personal Project)
 
-The bot is mainly for fun and I built it on my own time. In this bot, the features will continue to increase, but for now:
+Roadmap:
+Add Level + More API calls + etc.
 
-- Implementation of a Leveling System
+List of Modules Required:
 
-Updates:
-3/27/2023 - Started on the project :3
+Mostly made in Python
+
+I am not liable for anything that are caused under you using this bot :3
+Made by KiriHyper
