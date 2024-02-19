@@ -1,27 +1,31 @@
 import discord
 import discord.ext
 import sympy as sym
-from apicalls import OsuData, embed_osu, musicEngine
 import asyncio
 from pathlib import Path
+from apicalls import OsuData, embed_osu, musicEngine
 
-# setting up the bot
-intents = discord.Intents.all() 
-client = discord.Client(intents=intents)
-tree = discord.app_commands.CommandTree(client)
-musicPlayer = musicEngine(enabled=True)
+class KiriBot:
 
-# sync the slash command to your server
-@client.event
+    intents = discord.Intents.all() 
+    client = discord.Client(intents=intents)
+    tree = discord.app_commands.CommandTree(client)
+    musicPlayer = musicEngine(enabled=True)
+    
+    def __init__(self, token):
+        self.token = token
+        KiriBot.client.run(self.token)
+        print(f"[KiriBot] Initating Bot -> {token}")
+
+
+@KiriBot.client.event
 async def on_ready():
-    await tree.sync(guild=None)
+    await KiriBot.tree.sync(guild=None)
     activity = discord.Game(name="go touch grass", type=3)
-    await client.change_presence(status=discord.Status.do_not_disturb, activity=activity)
-    # print "ready" in the console when the bot is ready to work
-    print("finished loading bot")
+    await KiriBot.client.change_presence(status=discord.Status.do_not_disturb, activity=activity)
+    print("[KiriBot] Initalized Bot")
 
-# make the slash command
-@tree.command(name="getallusers", description="lists out of all of the users in the server")
+@KiriBot.tree.command(name="getallusers", description="lists out of all of the users in the server")
 async def slash_command(interaction: discord.Interaction):
     result = interaction.guild_id
     await interaction.response.send_message(f"[Was Sent From -> ] Current Guild: {result}")
@@ -33,21 +37,21 @@ async def slash_command(interaction: discord.Interaction):
     
     print(all_members)
     print(test)
-    await client.get_channel(interaction.channel_id).send(all_members)
+    await KiriBot.client.get_channel(interaction.channel_id).send(all_members)
 
-@tree.command(name="getserverinfo", description="gets some basic server information")
+@KiriBot.tree.command(name="getserverinfo", description="gets some basic server information")
 async def getserverinfo(interaction: discord.Interaction):
-    await interaction.response.send_message("iyaaaa")
+    await interaction.response.send_message("Nothing yet.")
 
-@tree.command(name='vc-up', description='literally joins the current voice channel you are currently in')
+@KiriBot.tree.command(name='vc-up', description='literally joins the current voice channel you are currently in')
 async def join_vc(interaction:discord.Interaction):
     await interaction.response.send_message(f"Please Hold. Attempting to Join {interaction.user}'s voice channel. (If Exists)")
     current_user = interaction.user.voice.channel
     await current_user.connect()
-    await client.get_channel(interaction.channel_id).send(f"Joined Voice Channel: {current_user}")
+    await KiriBot.client.get_channel(interaction.channel_id).send(f"Joined Voice Channel: {current_user}")
 
 
-@tree.command(name="differentiate", description="you can't do math confirmed")
+@KiriBot.tree.command(name="differentiate", description="you can't do math confirmed")
 async def differentiate(interaction: discord.Interaction, equation: str, respect_to: str):
     equation = equation.replace("^", "**")
     print("with respect to", respect_to)
@@ -63,7 +67,7 @@ async def differentiate(interaction: discord.Interaction, equation: str, respect
     await interaction.response.send_message(str(locals()["derivative_result"]).replace("**", "^"))
 
 
-@tree.command(name="get_osu_top_plays", description="Gets the top 10 plays for the user")
+@KiriBot.tree.command(name="get_osu_top_plays", description="Gets the top 10 plays for the user")
 async def get_osu_top_plays(interaction: discord.Interaction, player: str) -> list:
     osu_data = OsuData()
     osu_data_plays = osu_data.get_user_plays(player, limit=10, type="best")
@@ -74,9 +78,10 @@ async def get_osu_top_plays(interaction: discord.Interaction, player: str) -> li
     else:
         await interaction.response.send_message("Error has occured. Either Player does not exist or Timed Out.")
 
-@tree.command(name="enqueue_song", description="Adds a song to the queue")
+
+@KiriBot.tree.command(name="enqueue_song", description="Adds a song to the queue")
 async def enqueue_song(interaction:discord.Interaction, link: str):
-    result = await musicPlayer.enqueue_song(link)
+    result = await KiriBot.musicPlayer.enqueue_song(link)
     try:
         if result:
             await interaction.response.send_message(f"Successfully enqueued song: {link}")
@@ -86,9 +91,9 @@ async def enqueue_song(interaction:discord.Interaction, link: str):
         print(e)
         await interaction.response.send_message(f"An error has occured, but likely is added {link} check the queue.")
 
-@tree.command(name="show_queue", description="gets all of the song in the queue currently")
+@KiriBot.tree.command(name="show_queue", description="gets all of the song in the queue currently")
 async def show_queue(interaction:discord.Interaction):
-    result = await musicPlayer.song_embed()
+    result = await KiriBot.musicPlayer.song_embed()
     try:
         if result:
             await interaction.response.send_message(embed=result)
@@ -99,9 +104,9 @@ async def show_queue(interaction:discord.Interaction):
         await interaction.response.send_message(f"An error has occured with discord. Please try again.")
 
 
-@tree.command(name="play_music", description="plays the music and joins the current vc you are in, if there is a queue.")
+@KiriBot.tree.command(name="play_music", description="plays the music and joins the current vc you are in, if there is a queue.")
 async def play_music(interaction:discord.Interaction):
-    current_song = await musicPlayer.dequeue_song()
+    current_song = await KiriBot.musicPlayer.dequeue_song()
     if current_song:
         await interaction.response.send_message(f"Found music. Joining a voice call. Please Hold On.")
         current_user = interaction.guild.voice_client
@@ -111,19 +116,19 @@ async def play_music(interaction:discord.Interaction):
             current_user = await current_user.connect()
         
         while current_song:
-            await client.get_channel(interaction.channel_id).send(f"Now Playing: {Path(current_song).stem}.")
+            await KiriBot.client.get_channel(interaction.channel_id).send(f"Now Playing: {Path(current_song).stem}.")
             current_user.play(discord.FFmpegPCMAudio(current_song))
 
             while current_user.is_playing():
                 await asyncio.sleep(1)
             
-            current_song = await musicPlayer.dequeue_song()
-            print("playing next song?", current_song)
+            current_song = await KiriBot.musicPlayer.dequeue_song()
+
     else:
         await interaction.response.send_message("There are no songs in the queue.")
 
 
-@tree.command(name="skip_current_song", description="skips the current song that is currently playing")
+@KiriBot.tree.command(name="skip_current_song", description="skips the current song that is currently playing")
 async def skip_current_song(interaction:discord.Interaction):
     current_user = interaction.guild.voice_client
     if current_user and current_user.is_connected():
@@ -132,15 +137,15 @@ async def skip_current_song(interaction:discord.Interaction):
     await interaction.response.send_message(f"If there is a song that is currently playing right now, it will be skipped.")
 
 
-@tree.command(name="cur_version", description="gets the current verison of the bot")
+@KiriBot.tree.command(name="cur_version", description="gets the current verison of the bot")
 async def slash_command_two(interaction: discord.Interaction):    
     await interaction.response.send_message("2.0")
 
-@tree.command(name="new_updates", description=" ")
+@KiriBot.tree.command(name="new_updates", description="gets the new update")
 async def new_updates(interaction: discord.Interaction):
     await interaction.response.send_message("Latest Version added music functionality")
 
 
 if __name__ == "__main__":
     print("Starting Bot")
-    client.run("NONE")
+    KiriBot("NTI5ODkyMDY3NTkwMjc1MTA0.GRANXX.9UgDpJlKmn_qef36IDLCb9D1I1qbLc1_kGblnY")

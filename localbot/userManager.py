@@ -8,7 +8,11 @@ class UserData:
         self.xp = 0
         self.message_history = []
 
-    def get_user_data(self):
-        database = MongoDB()
-        saved_data = database.get_query(self.user_id)
-        saved_data["user_id"] = 
+    def get_user_stats(self):
+        pass
+
+    def save_user_stats(self):
+        pass
+
+    def clear_user_stats(self):
+        pass

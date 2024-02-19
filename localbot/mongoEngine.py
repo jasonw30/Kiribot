@@ -1,8 +1,12 @@
 import pymongo
+import configparser
+from pathlib import Path
 
-DATASAVE = "None"
-DATABASE = "Main_Database"
-COLLECTION = "UserData"
+config = configparser.ConfigParser()
+config.read(Path(".").parent / Path("configuration.ini"))
+DATASAVE = config.get('MongoDB', 'Link')
+DATABASE = config.get('MongoDB', 'Database')
+COLLECTION = config.get('MongoDB', 'UserData')
 
 class MongoDB:
 
@@ -13,8 +17,11 @@ class MongoDB:
         self.client = client
         self.database = database
         self.collection = collection
+        print(f"[MongoDB Manager] Datasave -> {DATASAVE}")
+        print(f"[MongoDB Manager] Database -> {DATABASE}")
+        print(f"[MongoDB Manager] Database Collection -> {COLLECTION}")
         print(f"[MongoDB Manager] Successfully Setup")
-    
+
     def __get_collection(self):
         """
         Gets the collection of the MongoDB database

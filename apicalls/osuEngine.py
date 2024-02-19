@@ -1,10 +1,20 @@
 import ossapi
 import asyncio
 import discord
+from pathlib import Path
+import configparser
+
+config = configparser.ConfigParser()
+config.read(Path(".").parent / Path("configuration.ini"))
+Oath_Code = config.get('Osu', 'Oath_Code')
+Client_ID = config.get('Osu', 'Client_ID')
+
+print(f"[OSUEngine] Oath_Code -> {Oath_Code}")
+print(f"[OSUEngine] Client_ID -> {Client_ID}")
 
 CLIENT_LOGIN = {
-    "oath_code": None,
-    "client_id": None,
+    "oath_code": Oath_Code,
+    "client_id": Client_ID,
 }
 
 class OsuPlays:
