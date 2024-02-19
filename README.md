@@ -23,6 +23,8 @@ Made with:
 - Python
 - MongoDB (Storing Bot Data)
 
+#Important Reminder: I am not liable for anything that happens when you use this bot. Use at your own risk. Please do not copy this as this is my own work, but you are free to use it.
+
 Credits/Made by:
 -> KiriHyper/jasonw30 (discord/github)
 
