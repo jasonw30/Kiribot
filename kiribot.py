@@ -1,9 +1,18 @@
 import discord
 import discord.ext
+from discord.ext import tasks
 import sympy as sym
 import asyncio
 from pathlib import Path
 from apicalls import OsuData, embed_osu, musicEngine
+from localbot import UserDataManager
+
+LAST_UPDATED = "3/13/2024"
+
+
+@tasks.loop(seconds=300) #5 minute configuration
+async def data_saving():
+    UserDataManager.async_save()
 
 class KiriBot:
 
@@ -13,45 +22,57 @@ class KiriBot:
     musicPlayer = musicEngine(enabled=True)
     
     def __init__(self, token):
-        self.token = token
-        KiriBot.client.run(self.token)
         print(f"[KiriBot] Initating Bot -> {token}")
-
+        self.token = token
+        KiriBot.client.run(self.token)    
 
 @KiriBot.client.event
 async def on_ready():
     await KiriBot.tree.sync(guild=None)
-    activity = discord.Game(name="go touch grass", type=3)
+    activity = discord.Game(name="touching grass...", type=3)
     await KiriBot.client.change_presence(status=discord.Status.do_not_disturb, activity=activity)
+    data_saving.start()
     print("[KiriBot] Initalized Bot")
 
-@KiriBot.tree.command(name="getallusers", description="lists out of all of the users in the server")
-async def slash_command(interaction: discord.Interaction):
-    result = interaction.guild_id
-    await interaction.response.send_message(f"[Was Sent From -> ] Current Guild: {result}")
-    all_members = []
-    test = []
-    for i in interaction.guild.members:
-        test.append(i)
-        all_members.append((i.name, i.display_name))
-    
-    print(all_members)
-    print(test)
-    await KiriBot.client.get_channel(interaction.channel_id).send(all_members)
 
-@KiriBot.tree.command(name="getserverinfo", description="gets some basic server information")
+@KiriBot.tree.command(name="getserverinfo", description="Gets some basic server information")
 async def getserverinfo(interaction: discord.Interaction):
-    await interaction.response.send_message("Nothing yet.")
+    guild = interaction.guild
+    if guild:
+        embed = discord.Embed(title="Server Information", color=discord.Color.blurple())
+        embed.add_field(name="Server Name", value=guild.name, inline=False)
+        embed.add_field(name="Server ID", value=guild.id, inline=False)
+        embed.add_field(name="Server Owner", value=guild.owner, inline=False)
+        embed.add_field(name="Total Members", value=guild.member_count, inline=False)
+        await interaction.response.send_message(embed=embed)
+    else:
+        await interaction.response.send_message("This command must be used in a server.")
 
-@KiriBot.tree.command(name='vc-up', description='literally joins the current voice channel you are currently in')
-async def join_vc(interaction:discord.Interaction):
-    await interaction.response.send_message(f"Please Hold. Attempting to Join {interaction.user}'s voice channel. (If Exists)")
-    current_user = interaction.user.voice.channel
-    await current_user.connect()
-    await KiriBot.client.get_channel(interaction.channel_id).send(f"Joined Voice Channel: {current_user}")
+
+@KiriBot.tree.command(name='talk', description='talks for you')
+async def talk(interaction:discord.Interaction, message:str, id: str):
+    if interaction and message and id:
+        await KiriBot.client.get_channel(int(id)).send(f"{message}")
+        await interaction.response.send_message(">.<")
+    else:
+        await interaction.response.send_message("Invalid Inputs.")
+
+@KiriBot.client.event
+async def on_message(message):
+    # Check if the message was sent by a user and not a bot (including your own bot)
+    if message.author.bot:
+        return
+
+    userData = UserDataManager.get_user_stats(str(message.author.id))
+    UserDataManager.update_exp(userData, userData.exp + 1)
+    UserDataManager.update_money(userData, userData.money + 1)
+    print(f"[END] The user currently has {userData.exp}")
+    UserDataManager.save_user_stats(userData)
+
+    print(f"{message.author} -> {message.content} (Channel: {message.channel})")
 
 
-@KiriBot.tree.command(name="differentiate", description="you can't do math confirmed")
+@KiriBot.tree.command(name="calculus-differentiate", description="does calculus")
 async def differentiate(interaction: discord.Interaction, equation: str, respect_to: str):
     equation = equation.replace("^", "**")
     print("with respect to", respect_to)
@@ -67,6 +88,16 @@ async def differentiate(interaction: discord.Interaction, equation: str, respect
     await interaction.response.send_message(str(locals()["derivative_result"]).replace("**", "^"))
 
 
+@KiriBot.tree.command(name='getuserinfo', description='gets the userInformation')
+async def get_user_info(interaction: discord.Interaction, user: discord.Member):
+    get_query = None #get_results(user.id)
+    if get_query:
+        pass
+        await interaction.response.send_message("This is about to be implemented.")
+    else:
+        await interaction.response.send_message("There is an issue fetching user data. Please Try again.")
+
+
 @KiriBot.tree.command(name="get_osu_top_plays", description="Gets the top 10 plays for the user")
 async def get_osu_top_plays(interaction: discord.Interaction, player: str) -> list:
     osu_data = OsuData()
@@ -77,8 +108,7 @@ async def get_osu_top_plays(interaction: discord.Interaction, player: str) -> li
         await interaction.response.send_message(embed=send_this)
     else:
         await interaction.response.send_message("Error has occured. Either Player does not exist or Timed Out.")
-
-
+        
 @KiriBot.tree.command(name="enqueue_song", description="Adds a song to the queue")
 async def enqueue_song(interaction:discord.Interaction, link: str):
     result = await KiriBot.musicPlayer.enqueue_song(link)
@@ -108,7 +138,7 @@ async def show_queue(interaction:discord.Interaction):
 async def play_music(interaction:discord.Interaction):
     current_song = await KiriBot.musicPlayer.dequeue_song()
     if current_song:
-        await interaction.response.send_message(f"Found music. Joining a voice call. Please Hold On.")
+
         current_user = interaction.guild.voice_client
 
         if not interaction.guild.voice_client or not current_user.is_connected():
@@ -116,7 +146,7 @@ async def play_music(interaction:discord.Interaction):
             current_user = await current_user.connect()
         
         while current_song:
-            await KiriBot.client.get_channel(interaction.channel_id).send(f"Now Playing: {Path(current_song).stem}.")
+            await interaction.response.send_message(interaction.channel_id).send(f"Now Playing: {Path(current_song).stem}.")
             current_user.play(discord.FFmpegPCMAudio(current_song))
 
             while current_user.is_playing():
@@ -137,15 +167,12 @@ async def skip_current_song(interaction:discord.Interaction):
     await interaction.response.send_message(f"If there is a song that is currently playing right now, it will be skipped.")
 
 
-@KiriBot.tree.command(name="cur_version", description="gets the current verison of the bot")
+@KiriBot.tree.command(name="cur_ver", description="gets the current verison of the bot")
 async def slash_command_two(interaction: discord.Interaction):    
-    await interaction.response.send_message("2.0")
-
-@KiriBot.tree.command(name="new_updates", description="gets the new update")
-async def new_updates(interaction: discord.Interaction):
-    await interaction.response.send_message("Latest Version added music functionality")
+    await interaction.response.send_message(f"Last Updated: {LAST_UPDATED}")
 
 
-if __name__ == "__main__":
-    print("Starting Bot")
-    KiriBot("NTI5ODkyMDY3NTkwMjc1MTA0.GRANXX.9UgDpJlKmn_qef36IDLCb9D1I1qbLc1_kGblnY")
+@KiriBot.tree.command(name="stats", description="gets the user own stats")
+async def stats(interaction: discord.Interaction):
+    userData = UserDataManager.get_user_stats(interaction.user.id)
+    await interaction.response.send_message(f"Your current exp {userData.exp} and your current ${userData.money}")
