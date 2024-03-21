@@ -2,7 +2,6 @@ import math
 from . import MongoDB
 
 Database = MongoDB()
-CACHE_DATA = {}
 
 class UserData:
     
@@ -13,22 +12,23 @@ class UserData:
     
 class UserDataManager:
 
+    CACHE_DATA = {}
+
     @staticmethod
     def get_user_stats(user_id) -> None:
         """
         Retrieves and converts user data if exists to a UserData object, else make an empty one.
         """
-        if str(user_id) in CACHE_DATA.keys():
-            print("got cached")
-            return CACHE_DATA[str(user_id)]
+        if str(user_id) in UserDataManager.CACHE_DATA.keys():
+            return UserDataManager.CACHE_DATA[str(user_id)]
 
         query_found = Database.get_query(str(user_id))
         if not query_found:
-            CACHE_DATA[str(user_id)] = UserData(user_id)
+            UserDataManager.CACHE_DATA[str(user_id)] = UserData(user_id)
         else:
-            CACHE_DATA[str(user_id)] = UserData(user_id, exp=query_found['exp'], money=query_found['money'])
+            UserDataManager.CACHE_DATA[str(user_id)] = UserData(user_id, exp=query_found['exp'], money=query_found['money'])
     
-        return CACHE_DATA[str(user_id)]
+        return UserDataManager.CACHE_DATA[str(user_id)]
 
 
     @staticmethod
@@ -64,8 +64,13 @@ class UserDataManager:
     @staticmethod
     def async_save():
         print("Starting Async Save Process")
-        print(CACHE_DATA)
-        for userData in CACHE_DATA.items():
+        print(UserDataManager.CACHE_DATA)
+        for userData in UserDataManager.CACHE_DATA.items():
             print("Saving:", userData[0])
             UserDataManager.save_user_stats(userData[1])
         print("Finished Saving Data...")
+
+    @staticmethod
+    def async_reset_cache():
+        print("Resetting cache")
+        UserDataManager.CACHE_DATA = {}

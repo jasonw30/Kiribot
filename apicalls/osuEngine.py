@@ -92,8 +92,6 @@ def embed_osu(player: str, osu_data_plays: list) -> list:
 
 
 if __name__ == "__main__":
-
-
     osu_data = OsuData()
     x = osu_data.get_user_plays("KiriHyper", 50, "best")
     print(x)

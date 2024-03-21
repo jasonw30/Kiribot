@@ -5,14 +5,15 @@ import sympy as sym
 import asyncio
 from pathlib import Path
 from apicalls import OsuData, embed_osu, musicEngine
-from localbot import UserDataManager
+from localbot import UserDataManager, AdminCommands, AdminManager
 
-LAST_UPDATED = "3/13/2024"
+LAST_UPDATED = "3/20/2024"
 
 
 @tasks.loop(seconds=300) #5 minute configuration
 async def data_saving():
     UserDataManager.async_save()
+    UserDataManager.async_reset_cache()
 
 class KiriBot:
 
@@ -20,6 +21,7 @@ class KiriBot:
     client = discord.Client(intents=intents)
     tree = discord.app_commands.CommandTree(client)
     musicPlayer = musicEngine(enabled=True)
+    adminEngine = AdminCommands()
     
     def __init__(self, token):
         print(f"[KiriBot] Initating Bot -> {token}")
@@ -66,7 +68,6 @@ async def on_message(message):
     userData = UserDataManager.get_user_stats(str(message.author.id))
     UserDataManager.update_exp(userData, userData.exp + 1)
     UserDataManager.update_money(userData, userData.money + 1)
-    print(f"[END] The user currently has {userData.exp}")
     UserDataManager.save_user_stats(userData)
 
     print(f"{message.author} -> {message.content} (Channel: {message.channel})")
@@ -87,7 +88,6 @@ async def differentiate(interaction: discord.Interaction, equation: str, respect
     exec(stralpha3)
     await interaction.response.send_message(str(locals()["derivative_result"]).replace("**", "^"))
 
-
 @KiriBot.tree.command(name='getuserinfo', description='gets the userInformation')
 async def get_user_info(interaction: discord.Interaction, user: discord.Member):
     get_query = None #get_results(user.id)
@@ -96,7 +96,6 @@ async def get_user_info(interaction: discord.Interaction, user: discord.Member):
         await interaction.response.send_message("This is about to be implemented.")
     else:
         await interaction.response.send_message("There is an issue fetching user data. Please Try again.")
-
 
 @KiriBot.tree.command(name="get_osu_top_plays", description="Gets the top 10 plays for the user")
 async def get_osu_top_plays(interaction: discord.Interaction, player: str) -> list:
@@ -111,15 +110,8 @@ async def get_osu_top_plays(interaction: discord.Interaction, player: str) -> li
         
 @KiriBot.tree.command(name="enqueue_song", description="Adds a song to the queue")
 async def enqueue_song(interaction:discord.Interaction, link: str):
+    await interaction.response.send_message(f"Enqueued song: {link}")
     result = await KiriBot.musicPlayer.enqueue_song(link)
-    try:
-        if result:
-            await interaction.response.send_message(f"Successfully enqueued song: {link}")
-        else:
-            await interaction.response.send_message(f"Problem with enqueueing the song.")
-    except discord.app_commands.errors.CommandInvokeError as e:
-        print(e)
-        await interaction.response.send_message(f"An error has occured, but likely is added {link} check the queue.")
 
 @KiriBot.tree.command(name="show_queue", description="gets all of the song in the queue currently")
 async def show_queue(interaction:discord.Interaction):
@@ -167,12 +159,45 @@ async def skip_current_song(interaction:discord.Interaction):
     await interaction.response.send_message(f"If there is a song that is currently playing right now, it will be skipped.")
 
 
-@KiriBot.tree.command(name="cur_ver", description="gets the current verison of the bot")
+@KiriBot.tree.command(name="current_version", description="gets the current verison of the bot")
 async def slash_command_two(interaction: discord.Interaction):    
     await interaction.response.send_message(f"Last Updated: {LAST_UPDATED}")
-
 
 @KiriBot.tree.command(name="stats", description="gets the user own stats")
 async def stats(interaction: discord.Interaction):
     userData = UserDataManager.get_user_stats(interaction.user.id)
     await interaction.response.send_message(f"Your current exp {userData.exp} and your current ${userData.money}")
+
+@KiriBot.tree.command(name='translate', description='translates')
+async def translate(interaction: discord.Interaction, message: str, language: str):
+    await interaction.response.send_message(f"This is coming soon. Need to implement the API")
+
+@KiriBot.tree.command(name='mute_user', description='mutes user')
+async def mute(interaction: discord.Interaction, user_id: str, reason: str):
+    response = await KiriBot.adminEngine.mute_user(interaction, interaction.user.id, user_id, reason)
+    await interaction.response.send_message(f"{response}, {reason}")
+
+@KiriBot.tree.command(name='unmute_user', description='unmutes user')
+async def unmute(interaction: discord.Interaction, user_id: str, reason: str):
+    response = await KiriBot.adminEngine.unmute_user(interaction, interaction.user.id, user_id)
+    await interaction.response.send_message(f"{response}, {reason}")
+
+@KiriBot.tree.command(name='admin_list', description='lists out all of the admins')
+async def list_admins(interaction: discord.Interaction):
+    response = AdminManager.getAdmins()
+    await interaction.response.send_message(f"{response}")
+
+@KiriBot.tree.command(name='admin_add', description='adds an admin to the list')
+async def admin_add(interaction: discord.Interaction, user_id: str):
+    response = AdminManager.addAdmin(user_id)
+    await interaction.response.send_message(f"{response}")
+
+@KiriBot.tree.command(name='admin_remove', description='removes an admin to the list')
+async def admin_remove(interaction: discord.Interaction, user_id: str):
+    response = AdminManager.removeAdmin(user_id)
+    await interaction.response.send_message(f"{response}")
+
+@KiriBot.tree.command(name='reset_admins', description='resets all admins')
+async def admin_remove(interaction: discord.Interaction):
+    response = AdminManager.resetAdmin()
+    await interaction.response.send_message(f"{response}")
