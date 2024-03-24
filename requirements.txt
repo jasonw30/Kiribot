@@ -3,3 +3,4 @@ discord
 sympy
 ossapi
 pytube
+pillow
